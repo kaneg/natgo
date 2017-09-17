@@ -12,20 +12,20 @@ import (
 )
 
 var serviceMap = make(map[string]string)
-var mgrChannelLock = sync.Mutex{}
+var mgrChannelLockForClient = sync.Mutex{}
 
 var isServerAlive = true
 
 func main() {
     log.Println("Start NAT client")
-    if (len(os.Args) < 3) {
+    if len(os.Args) < 3 {
         log.Println("Usage: natgo-client <remoteHost:port>  <servicePort:targetHost:port> [servicePort:targetHost:port] ")
         return
     }
     remoteAddr := os.Args[1]
-    targetAddrs := os.Args[2:]
+    targetAddresses := os.Args[2:]
     var services = ""
-    for _, targetAddr := range targetAddrs {
+    for _, targetAddr := range targetAddresses {
         i := strings.Index(targetAddr, ":")
         service := targetAddr[0:i]
         targetAddr = targetAddr[i + 1:]
@@ -50,7 +50,7 @@ func main() {
         connRemote.SetReadDeadline(time.Now().Add(5 * time.Second))
 
         err = natgo.ClientRegisterRequest(connRemote, services)
-        if (err != nil) {
+        if err != nil {
             log.Println("Can not register to server.")
             continue
         }
@@ -58,9 +58,8 @@ func main() {
 
         go heartBeat(connRemote)
         for {
-
             sessionId, service, err := serverStartSessionResponse(connRemote)
-            if (err == nil) {
+            if err == nil {
                 targetAddr := serviceMap[service]
                 work(remoteAddr, targetAddr, sessionId)
             } else {
@@ -79,28 +78,28 @@ func heartBeat(conn net.Conn) {
         time.Sleep(30 * time.Second)
         log.Println("Begin heart beat")
         log.Println("Get mgr conn lock")
-        mgrChannelLock.Lock()
+        mgrChannelLockForClient.Lock()
         isServerAlive = false
         _, err := conn.Write([]byte{natgo.CMD_HEART_BEAT_REQUEST})
-        if (err != nil) {
+        if err != nil {
             log.Println("Failed to send heartbeat request to server, close the connection.", err)
             conn.Close()
-            mgrChannelLock.Unlock()
+            mgrChannelLockForClient.Unlock()
             return
         }
 
         time.Sleep(2 * time.Second) //waiting for response
 
-        if (isServerAlive) {
+        if isServerAlive {
             log.Println("Get heartbeat response from server")
         } else {
             log.Println("Failed to get heartbeat response, close the connection.", err)
             conn.Close()
-            mgrChannelLock.Unlock()
+            mgrChannelLockForClient.Unlock()
             return
         }
         log.Println("Release mgr lock")
-        mgrChannelLock.Unlock()
+        mgrChannelLockForClient.Unlock()
         log.Println("Done heartbeat")
     }
 }
@@ -115,7 +114,7 @@ func work(remoteAddr, targetAddr string, sessionId int32) {
 
     log.Println("Connecting to session remoteAddr ", remoteAddr)
     sessionConn := connectPort(remoteAddr)
-    if (sessionConn == nil) {
+    if sessionConn == nil {
         log.Println("Failed to connect to remote addr")
         return
     }
@@ -128,7 +127,7 @@ func work(remoteAddr, targetAddr string, sessionId int32) {
 
 func connectPort(remoteAddr string) net.Conn {
     conn, err := net.DialTimeout("tcp", remoteAddr, 5 * time.Second)
-    if (err != nil) {
+    if err != nil {
         log.Println("Can't connect to addr: ", err)
         return nil
     }
@@ -142,17 +141,17 @@ func serverStartSessionResponse(conn net.Conn) (int32, string, error) {
         request := make([]byte, 20)
         log.Println("Begin read cmd...")
         _, err := conn.Read(request)
-        if (err != nil) {
+        if err != nil {
             return 0, "", err
         }
         log.Println("Read cmd:", request)
-        if (request[0] == natgo.CMD_HEART_BEAT_RESPONSE) {
+        if request[0] == natgo.CMD_HEART_BEAT_RESPONSE {
             log.Println("Get heart beat cmd.")
             isServerAlive = true
             continue
-        } else if (request[0] != natgo.CMD_SERVER_START_SESSION_REQUEST) {
+        } else if request[0] != natgo.CMD_SERVER_START_SESSION_REQUEST {
             log.Println("Invalid cmd")
-            return 0, "", errors.New("Invalid cmd from server")
+            return 0, "", errors.New("invalid cmd from server")
         }
         requestId := natgo.BytesToInt32(request[1:5])
         log.Println("request id:", requestId)
@@ -166,9 +165,9 @@ func serverStartSessionResponse(conn net.Conn) (int32, string, error) {
         response := make([]byte, 1)
         response[0] = natgo.CMD_SERVER_START_SESSION_RESPONSE
         log.Println("Sending response ", response)
-        mgrChannelLock.Lock()
+        mgrChannelLockForClient.Lock()
         conn.Write(response)
-        mgrChannelLock.Unlock()
+        mgrChannelLockForClient.Unlock()
         log.Println("Sent CMD_SERVER_START_SESSION_RESPONSE response")
         return requestId, service, nil
     }

@@ -18,7 +18,7 @@ var mgrChannelLock = sync.Mutex{}
 
 func main() {
     log.Println("Start NAT server")
-    if (len(os.Args) < 3) {
+    if len(os.Args) < 3 {
         log.Println("Usage: natgo-server <managerPort>  <servicePort> [servicePort] ...")
         return
     }
@@ -56,7 +56,7 @@ func handleClient(conn net.Conn) error {
     conn.Read(request)
 
     cmd := request[0]
-    if (cmd == natgo.CMD_REGISTER_CLIENT_REQUEST) {
+    if cmd == natgo.CMD_REGISTER_CLIENT_REQUEST {
         log.Println("Get register request from client.")
         portBuffer := make([]byte, 1024)
         conn.Read(portBuffer)
@@ -77,7 +77,7 @@ func handleClient(conn net.Conn) error {
             natConnectionPool[v] = conn
         }
         go processMgrChannel(conn)
-    } else if (cmd == natgo.CMD_CLIENT_REPLY_SESSION_REQUEST) {
+    } else if cmd == natgo.CMD_CLIENT_REPLY_SESSION_REQUEST {
         log.Println("Got a session connection from client:", conn)
         request = make([]byte, 4)
         conn.Read(request)
@@ -91,7 +91,7 @@ func handleClient(conn net.Conn) error {
         guestConn := waitingGuestConnectionPool[sessionId]
         log.Println("Get guest connection from pool:", guestConn)
         delete(waitingGuestConnectionPool, sessionId)
-        if (guestConn != nil) {
+        if guestConn != nil {
             natgo.ConnectionExchange(conn, guestConn)
         }
     }
@@ -103,25 +103,25 @@ func processMgrChannel(conn net.Conn) {
     for {
         buffer := make([]byte, 1)
         _, err := conn.Read(buffer)
-        if (err != nil) {
+        if err != nil {
             log.Println("Failed to read from client, ", err)
             conn.Close()
             return
         }
         cmd := buffer[0]
-        if (cmd == natgo.CMD_HEART_BEAT_REQUEST) {
+        if cmd == natgo.CMD_HEART_BEAT_REQUEST {
             log.Println("Get heartbeat request from client")
             rsp := []byte{natgo.CMD_HEART_BEAT_RESPONSE}
             mgrChannelLock.Lock()
             log.Println("Response heartbeat to client")
             _, err = conn.Write(rsp)
             mgrChannelLock.Unlock()
-            if (err != nil) {
+            if err != nil {
                 log.Println("Failed to write client")
                 conn.Close()
                 return
             }
-        } else if (cmd == natgo.CMD_SERVER_START_SESSION_RESPONSE) {
+        } else if cmd == natgo.CMD_SERVER_START_SESSION_RESPONSE {
             //do nothing for now
             log.Println("Get response from client for start session")
         }
@@ -167,7 +167,7 @@ func connectNATAndGuest(natConn net.Conn, guestConn net.Conn, guestPort string) 
     mgrChannelLock.Lock()
     err := natgo.ServerStartSessionRequest(natConn, sessionId, guestPort)
     mgrChannelLock.Unlock()
-    if (err == nil) {
+    if err == nil {
         log.Println("Get correct response, begin start session")
         waitingGuestConnectionPool[sessionId] = guestConn
         go timeoutForGuestConnection(sessionId)
@@ -179,7 +179,7 @@ func connectNATAndGuest(natConn net.Conn, guestConn net.Conn, guestPort string) 
 func timeoutForGuestConnection(sessionId int32) {
     time.Sleep(5 * time.Second)
     conn, ok := waitingGuestConnectionPool[sessionId]
-    if (ok) {
+    if ok {
         log.Println("Timeout to wait for connection from client, close the guest.")
         conn.Close()
         delete(waitingGuestConnectionPool, sessionId)
