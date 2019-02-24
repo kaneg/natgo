@@ -1,9 +1,9 @@
-package main
+package legacy
 
 import (
     "net"
     "sync"
-    "./natgo"
+    "../natgo"
     "os"
     "strings"
     "time"

@@ -1,8 +1,8 @@
-package main
+package legacy
 
 import (
     "net"
-    "./natgo"
+    "../natgo"
     "sync"
     "os"
     "time"
